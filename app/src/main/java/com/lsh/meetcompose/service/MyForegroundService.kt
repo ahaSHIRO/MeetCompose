@@ -3,11 +3,14 @@ package com.lsh.meetcompose.service
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.os.IBinder
 import android.util.Log
+import com.lsh.meetcompose.MainActivity
 import com.lsh.meetcompose.R
+import kotlin.jvm.java
 
 /**
  * 前台服务：用一条常驻通知换取后台不被系统杀死的资格。
@@ -24,6 +27,7 @@ class MyForegroundService : Service() {
     companion object {
         // const val 走编译期常量，日志过滤器能直接用作标签
         const val TAG = "MyForegroundService"
+        const val ACTION_RESTART = "com.lsh.meetcompose.service.MyForegroundService.RESTART"
     }
 
     @Volatile // 主线程写、子线程读，不标可见性线程可能读不到 false 而停不下来
@@ -54,8 +58,34 @@ class MyForegroundService : Service() {
     }
 
     private fun createNotification() {
-        notification = Notification.Builder(this, channelId2).setContentTitle("我的通知").setContentText("你有条新的消息")
-            .setSmallIcon(R.drawable.ic_launcher_foreground).build()
+        // 点通知本体：回到界面
+        val contentIntent = PendingIntent.getActivity(
+            this, 22,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // 两个按钮走广播：后台直接拉服务会被拦，广播接收器可以
+        // 请求码刻意不同：相同则 PendingIntent 被复用，两个按钮会变成同一个
+        val actionA = PendingIntent.getBroadcast(
+            this, 13,
+            Intent(this, MyServiceRestartReceiver::class.java),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        val actionB = PendingIntent.getBroadcast(
+            this, 25,
+            Intent(this, MyServiceRestartReceiver::class.java),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+
+        notification = Notification.Builder(this, channelId2)
+            .setContentTitle("我的通知")
+            .setContentText("你有条新的消息")
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentIntent(contentIntent) // 点通知时执行
+            .addAction(R.drawable.ic_launcher_foreground, "AAA", actionA)
+            .addAction(R.drawable.ic_launcher_foreground, "BBB", actionB)
+            .build()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -68,6 +98,24 @@ class MyForegroundService : Service() {
         super.onDestroy()
         Log.d(TAG, "MyForegroundService 销毁了")
         isRun = false
+        sendRestartSignal("onDestroy")
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        Log.d(TAG, "MyForegroundService 任务被移除了")
+        sendRestartSignal("onTaskRemoved")
+    }
+
+    // 空 Intent + action + setPackage：属于“只限本包”的显式广播
+// 8.0+ 只有显式广播才允许被静态注册的 receiver 收到；不设 package 等于石沉大海
+    private fun sendRestartSignal(from: String) {
+        Log.d(TAG, "发送重启信号，来源：$from")
+        val intent = Intent().apply {
+            action = ACTION_RESTART
+            `package` = "com.lsh.meetcompose"
+        }
+        sendBroadcast(intent)
     }
 
     /**
@@ -79,7 +127,8 @@ class MyForegroundService : Service() {
     private fun createChannel() {
         val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         if (notificationManager.getNotificationChannel(channelId1) == null) {
-            val channel = NotificationChannel(channelId1, "普通通知", NotificationManager.IMPORTANCE_DEFAULT)
+            val channel =
+                NotificationChannel(channelId1, "普通通知", NotificationManager.IMPORTANCE_DEFAULT)
             channel.apply {
                 description = "这是一个普通通知"
                 enableLights(true)
