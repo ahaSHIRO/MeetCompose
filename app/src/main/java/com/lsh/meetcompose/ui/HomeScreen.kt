@@ -1,5 +1,6 @@
 package com.lsh.meetcompose.ui
 
+import com.lsh.meetcompose.ui.theme.MeetComposeTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -52,6 +54,27 @@ fun HomeScreen(
             ServiceButton("解绑服务", onUnbindService)
             ServiceButton("启动前台服务", onForegroundService)
         }
+    }
+}
+
+/**
+ * HomeScreen 的预览入口。
+ *
+ * 必须另起一个无参函数：HomeScreen 的五个回调都没有默认值，预览器没法替调用方传参，
+ * 所以在这里统一喂空 lambda，只渲染界面，不会真的把服务拉起来。
+ * 外层包 MeetComposeTheme 是为了让配色与字体跟真机运行时保持一致。
+ */
+@Preview(showBackground = true)
+@Composable
+private fun HomeScreenPreview() {
+    MeetComposeTheme {
+        HomeScreen(
+            onStartService = {},
+            onStopService = {},
+            onBindService = {},
+            onUnbindService = {},
+            onForegroundService = {},
+        )
     }
 }
 

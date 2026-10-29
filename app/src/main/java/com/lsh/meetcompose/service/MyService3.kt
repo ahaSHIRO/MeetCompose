@@ -6,6 +6,9 @@ import android.os.Binder
 import android.os.IBinder
 import android.util.Log
 
+// TAG 放在文件顶层：编译期常量不需要挂在类上，Logcat 过滤时直接写 MyService3 即可
+private const val TAG = "MyService3"
+
 /**
  * 混合模式服务：先 startService 再 bindService。
  *
@@ -16,9 +19,6 @@ import android.util.Log
  * 两者都走，才是「既能常驻、又能被遥控」的完整形态。
  */
 class MyService3 : Service() {
-    companion object {
-        const val TAG = "MyService3"
-    }
 
     override fun onCreate() {
         super.onCreate()

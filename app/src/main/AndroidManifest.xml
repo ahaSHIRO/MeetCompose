@@ -1,9 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!--
+        组件登记表：Android 系统靠这份文件认出本应用有哪些组件、分别由谁启动。
+        本项目登记了三类组件：activity（界面）、service（后台服务）、receiver（广播接收器）。
+        漏登记的组件系统根本找不到，调用时会直接抛组件不存在类异常。
+    -->
+
+    <!-- 前台服务基础权限：缺它 startForegroundService 会直接抛 SecurityException -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Android 13+ 的通知权限：不申请时前台服务能起，但通知栏看不到，用户感知不到常驻 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Android 14+ 要求声明前台服务类型，本项目类型是 dataSync，此权限必须与之成对出现 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- 开机广播权限：不写这条，receiver 里的 BOOT_COMPLETED 过滤器永远收不到消息 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
 
     <application
         android:allowBackup="true"
@@ -14,6 +26,24 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.MeetCompose">
+
+        <!--
+            receiver 必须写在 application 内部；写到 manifest 下面 AAPT 会报 unexpected element。
+            exported="true" 是为了让系统能投递开机广播、以及通知按钮发出的重启广播。
+            intent-filter 里的 action 要与 MyForegroundService.ACTION_RESTART 常量完全一致，
+            否则广播发出去没有接收方，日志里一片安静、看不出任何异常。
+        -->
+        <receiver
+            android:name=".receiver.MyServiceRestartReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="com.lsh.meetcompose.service.MyForegroundService.RESTART" />
+            </intent-filter>
+        </receiver>
+        
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -35,6 +65,7 @@
             android:name=".service.MyService2"
             android:enabled="true"
             android:exported="true" />
+        <!-- foregroundServiceType 不可省：targetSdk 34 起不声明类型，startForeground 会直接抛异常 -->
         <service
             android:name=".service.MyForegroundService"
             android:enabled="true"
@@ -43,7 +74,7 @@
         <service
             android:name=".service.MyService3"
             android:enabled="true"
-            android:exported="true"></service>
+            android:exported="true" />
     </application>
 
 </manifest>

@@ -10,7 +10,7 @@ import android.os.IBinder
 import android.util.Log
 import com.lsh.meetcompose.MainActivity
 import com.lsh.meetcompose.R
-import kotlin.jvm.java
+import com.lsh.meetcompose.receiver.MyServiceRestartReceiver
 
 /**
  * 前台服务：用一条常驻通知换取后台不被系统杀死的资格。
@@ -27,6 +27,7 @@ class MyForegroundService : Service() {
     companion object {
         // const val 走编译期常量，日志过滤器能直接用作标签
         const val TAG = "MyForegroundService"
+        // 自定义广播 action：发送端与接收端必须用同一个字符串，否则广播发出去没人接
         const val ACTION_RESTART = "com.lsh.meetcompose.service.MyForegroundService.RESTART"
     }
 
@@ -58,11 +59,12 @@ class MyForegroundService : Service() {
     }
 
     private fun createNotification() {
-        // 点通知本体：回到界面
+        // 点通知本体：回到界面。第二个参数是请求码，22 与下面的 13、25 必须互不相同
+        // 请求码相同且 Intent 也相同时，系统会复用同一个 PendingIntent，两个按钮就废了一个
         val contentIntent = PendingIntent.getActivity(
             this, 22,
             Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE
+            PendingIntent.FLAG_IMMUTABLE // Android 12+ 强制要求：禁止外部应用篡改这个待发意图
         )
 
         // 两个按钮走广播：后台直接拉服务会被拦，广播接收器可以
@@ -97,7 +99,7 @@ class MyForegroundService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "MyForegroundService 销毁了")
-        isRun = false
+        isRun = false // 先停线程，再发广播，避免子线程变成孤儿
         sendRestartSignal("onDestroy")
     }
 
@@ -107,8 +109,12 @@ class MyForegroundService : Service() {
         sendRestartSignal("onTaskRemoved")
     }
 
-    // 空 Intent + action + setPackage：属于“只限本包”的显式广播
-// 8.0+ 只有显式广播才允许被静态注册的 receiver 收到；不设 package 等于石沉大海
+    /**
+     * 发出重启信号：服务被杀或被划掉时通知接收器，再由接收器把服务拉回来。
+     *
+     * 空 Intent + action + setPackage 属于「只限本包」的显式广播：8.0 起静态注册的接收器
+     * 收不到隐式广播，不设 package 这个广播就石沉大海，日志里也看不到任何反应。
+     */
     private fun sendRestartSignal(from: String) {
         Log.d(TAG, "发送重启信号，来源：$from")
         val intent = Intent().apply {
